@@ -244,17 +244,25 @@ unsigned int Context::Impl::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Device
     // Its actual semantics are undocumented anywhere reachable from source (Streamline's own header
     // says only "optional 4-channel control mask", nothing about format or population strategy).
     // Cheapest possible experiment for the one question that matters first: does Feature 18 respond to
-    // *anything* bound here at all? Reusing the motion-vectors resource as a stand-in probe --
-    // deliberately the wrong format/content, so a result-code change, a visible artifact, or a
-    // log/timing difference versus the null baseline is itself the finding, independent of whether
-    // the content is semantically meaningful. Not a claim about what the mask should actually contain.
+    // *anything* bound here at all? Round 1 (motion as probe): EvaluateFeature result=0x1, no visible
+    // artifact -- inconclusive, motion vectors are likely near-uniform/low-magnitude in this scene,
+    // which would mask a real effect even if consumed. Round 2: reuse the colour buffer instead --
+    // high dynamic range, strong per-pixel structure, so any real consumption should be unmistakable.
+    // Deliberately the wrong format/content either way; a visible artifact or timing/behavior change
+    // versus the null baseline is itself the finding, independent of whether the content is
+    // semantically meaningful. Not a claim about what the mask should actually contain.
     const auto controlMaskTestPattern = Config::Instance()->DlssNrControlMaskTestPattern.value_or_default();
-    ID3D12Resource* controlMaskProbe = controlMaskTestPattern != 0 ? motion : nullptr;
+    ID3D12Resource* controlMaskProbe =
+        controlMaskTestPattern == 1 ? motion : controlMaskTestPattern == 2 ? color : nullptr;
+    const char* controlMaskProbeName =
+        controlMaskTestPattern == 1 ? "motion-as-mask" : controlMaskTestPattern == 2 ? "color-as-mask" : "null";
     SetResource(params, "DLSSNR.ControlMask", controlMaskProbe);
     SetUInt(params, "DLSSNR.ControlMaskSubrectBaseX", 0u);
     SetUInt(params, "DLSSNR.ControlMaskSubrectBaseY", 0u);
-    SetUInt(params, "DLSSNR.ControlMaskSubrectWidth", controlMaskProbe != nullptr ? motionWidth : 0u);
-    SetUInt(params, "DLSSNR.ControlMaskSubrectHeight", controlMaskProbe != nullptr ? motionHeight : 0u);
+    SetUInt(params, "DLSSNR.ControlMaskSubrectWidth",
+            controlMaskProbe == nullptr ? 0u : controlMaskTestPattern == 1 ? motionWidth : width);
+    SetUInt(params, "DLSSNR.ControlMaskSubrectHeight",
+            controlMaskProbe == nullptr ? 0u : controlMaskTestPattern == 1 ? motionHeight : height);
 
     SetUInt(params, "DLSSNR.Enabled", 1u);
     SetUInt(params, "DLSSNR.Width", width);
@@ -307,7 +315,7 @@ unsigned int Context::Impl::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Device
         {
             logged = true;
             LOG_INFO("DLSS-NR ControlMask experiment: probe={} EvaluateFeature result=0x{:X}",
-                     controlMaskProbe != nullptr ? "motion-as-mask" : "null", (unsigned int) result);
+                     controlMaskProbeName, (unsigned int) result);
         }
     }
 
