@@ -332,6 +332,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrResidualConfidenceSensitivity.set_from_config(
                 readFloat("DlssNr", "ResidualConfidenceSensitivity"));
             DlssNrControlMaskTestPattern.set_from_config(readInt("DlssNr", "ControlMaskTestPattern"));
+            DlssNrEvaluationCadence.set_from_config(readUInt("DlssNr", "EvaluationCadence"));
             DlssNrToggleKey.set_from_config(readInt("DlssNr", "ToggleKey"));
             DlssNrTransferStrength.set_from_config(readFloat("DlssNr", "TransferStrength"));
             DlssNrColourStrength.set_from_config(readFloat("DlssNr", "ColourStrength"));
@@ -1313,6 +1314,8 @@ bool Config::SaveIni()
     ini.SetValue("DlssNr", "ScanInverted", GetBoolValue(Instance()->DlssNrScanInverted.value_for_config()).c_str());
     ini.SetValue("DlssNr", "ScanMeter", GetBoolValue(Instance()->DlssNrScanMeter.value_for_config()).c_str());
     ini.SetValue("DlssNr", "Passes", GetIntValue(Instance()->DlssNrPasses.value_for_config()).c_str());
+    ini.SetValue("DlssNr", "EvaluationCadence",
+                 GetIntValue(Instance()->DlssNrEvaluationCadence.value_for_config()).c_str());
     // ScanExposure is a developer override with no menu control; persist it so a set ini keeps it.
     ini.SetValue("DlssNr", "ScanExposure", GetBoolValue(Instance()->DlssNrScanExposure.value_for_config()).c_str());
     ini.SetValue("DlssNr", "WhitePointScale",

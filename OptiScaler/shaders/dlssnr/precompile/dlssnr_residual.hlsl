@@ -30,6 +30,13 @@
 //               local difference rather than a separate gradient pass over ground-truth radiance.
 //   gMode == 1  Apply: base + delta * gTransferStrength, clamped non-negative. Run after RR+SR
 //               with the upscaled history layer as the delta.
+//   gMode == 2  ReprojectOnly: carry gOriginal (the last real model answer) forward through this
+//               frame's motion vectors, with no new evaluation this frame -- for NR evaluation-
+//               cadence decoupling (DlssNr_Dx12_Run.cpp): a skipped frame reprojects last frame's
+//               raw model output instead of paying for a fresh NGX evaluate. Same reprojection/
+//               validity test as gMode==0's history term; invalid (off-screen / bad MV / caller-
+//               declared invalid) drops to zero rather than showing a stale answer from the wrong
+//               place on screen.
 
 #ifdef VK_MODE
 [[vk::binding(0, 0)]]
@@ -158,6 +165,25 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         float3 delta = SanitizeFinite3(gModel.SampleLevel(gLinear, uv, 0).rgb, float3(0.0, 0.0, 0.0));
 
         gTarget[id.xy] = float4(max(base.rgb + delta * gTransferStrength, 0.0), base.a);
+        return;
+    }
+
+    if (gMode == 2)
+    {
+        float2 uv = (float2(id.xy) + 0.5) / float2(gWidth, gHeight);
+        uint2 guideSize = uint2(gGuideWidth, gGuideHeight);
+        uint2 guidePos = min(uint2(uv * guideSize), guideSize - 1) +
+                         uint2(gResidualMotionBaseX, gResidualMotionBaseY);
+        float2 motion = gMotion.Load(int3(guidePos, 0)).xy * float2(gMvScaleX, gMvScaleY);
+        float2 prevUV = uv + motion;
+
+        bool valid = gResidualHistoryValid != 0 && all(isfinite(motion)) && all(abs(motion) < 2.0) &&
+                     all(prevUV >= 0.0) && all(prevUV <= 1.0);
+
+        float3 reprojected = valid ? gOriginal.SampleLevel(gLinear, prevUV, 0).rgb : float3(0.0, 0.0, 0.0);
+        reprojected = SanitizeFinite3(reprojected, float3(0.0, 0.0, 0.0));
+
+        gTarget[id.xy] = float4(reprojected, 1.0);
         return;
     }
 

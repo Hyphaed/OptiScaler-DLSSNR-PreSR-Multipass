@@ -102,6 +102,7 @@ auto DlssNr_Dx12::State::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Resource*
     if (frame.Reset)
     {
         nr.reset = true;
+        nr.lastEffectValid = false; // ADR-014: never reproject a pre-cut answer into a new scene.
 
         ++resets;
 
@@ -337,7 +338,45 @@ auto DlssNr_Dx12::State::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Resource*
     const bool enlargementReset = nr.reset;
     bool compositionSucceeded = false;
 
-    for (unsigned int pass = 0; pass < effectivePasses && result == NVSDK_NGX_Result_Success; ++pass)
+    // NR evaluation-cadence decoupling (ADR-014). Opt-in via DlssNrEvaluationCadence (default 1 =
+    // every frame, this whole branch unreachable, byte-for-byte the pre-existing behaviour below).
+    // N>1 reprojects last frame's real model answer through this frame's own motion vectors on
+    // N-1 frames out of N, instead of paying for a fresh (expensive) NGX evaluate every time.
+    const unsigned int evaluationCadence = std::max(1u, cfg.DlssNrEvaluationCadence.value_or_default());
+    const bool skipEvaluateThisFrame = evaluationCadence > 1 && nr.lastEffect != nullptr && nr.lastEffectValid &&
+                                       !nr.reset && (frame.SubmissionEpoch % evaluationCadence) != 0;
+
+    if (skipEvaluateThisFrame)
+    {
+        effectivePasses = 1;
+        MakeModelWritable(passOutput);
+        DlssNrConstants reproj {};
+        reproj.Mode = DlssNrResidualMode_ReprojectOnly;
+        reproj.Width = workWidth;
+        reproj.Height = workHeight;
+        reproj.GuideWidth = motionWidth;
+        reproj.GuideHeight = motionHeight;
+        reproj.ResidualMotionBaseX = motionBaseX;
+        reproj.ResidualMotionBaseY = motionBaseY;
+        reproj.MvScaleX = nr.guideMvScaleX * mvToWorkX;
+        reproj.MvScaleY = nr.guideMvScaleY * mvToWorkY;
+        reproj.ResidualHistoryValid = 1u;
+
+        if (shader.DispatchResidualPass(cmdList, reproj, modelInput, nullptr, nr.lastEffect, motionIn, passOutput))
+        {
+            finalAnswer = passOutput;
+            MakeModelReadable(finalAnswer);
+            modelRunning = true;
+        }
+        else
+        {
+            LOG_WARN("DLSS-NR: evaluation-cadence carry-forward dispatch failed, evaluating this "
+                     "frame instead");
+        }
+    }
+
+    for (unsigned int pass = 0; finalAnswer == nullptr && pass < effectivePasses &&
+                               result == NVSDK_NGX_Result_Success; ++pass)
     {
         MakeModelWritable(passOutput);
         bool evaluated = false;
@@ -375,6 +414,26 @@ auto DlssNr_Dx12::State::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Resource*
             passInput = nr.passClamp;
             passOutput = passOutput == nr.output ? nr.passScratch : nr.output;
         }
+    }
+
+    // ADR-014: a real evaluate just produced a fresh answer -- copy it out for a future skipped
+    // frame to reproject. Only when cadence decoupling is actually in use; skipped entirely (same
+    // cost as before this feature existed) otherwise.
+    if (!skipEvaluateThisFrame && evaluationCadence > 1 && nr.lastEffect != nullptr &&
+        result == NVSDK_NGX_Result_Success && finalAnswer != nullptr)
+    {
+        const D3D12_RESOURCE_STATES lastEffectPriorState = nr.lastEffectValid
+            ? D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE
+            : D3D12_RESOURCE_STATE_UNORDERED_ACCESS; // its state fresh out of CreateScratch
+        Barrier(cmdList, finalAnswer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                D3D12_RESOURCE_STATE_COPY_SOURCE);
+        Barrier(cmdList, nr.lastEffect, lastEffectPriorState, D3D12_RESOURCE_STATE_COPY_DEST);
+        cmdList->CopyResource(nr.lastEffect, finalAnswer);
+        Barrier(cmdList, nr.lastEffect, D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        Barrier(cmdList, finalAnswer, D3D12_RESOURCE_STATE_COPY_SOURCE,
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        nr.lastEffectValid = true;
     }
 
     if (ngxTime != nullptr)

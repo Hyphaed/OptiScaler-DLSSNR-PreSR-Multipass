@@ -280,6 +280,11 @@ class Config
     // stays null, current behaviour). Nonzero = bind the motion-vectors resource as a stand-in probe
     // for DLSSNR.ControlMask, to test whether Feature 18 responds to anything bound there at all.
     CustomOptional<int> DlssNrControlMaskTestPattern { 0 };
+    // NR evaluation-cadence decoupling (ADR-014). 1 (default) = evaluate every frame, the existing
+    // behaviour, unchanged. N>1 = evaluate one frame in N; the other N-1 frames reproject the last
+    // real answer through that frame's own motion vectors instead of paying for a fresh NGX
+    // evaluate. See dlssnr_residual.hlsl's ReprojectOnly mode and DlssNr_Dx12_Run.cpp.
+    CustomOptional<uint32_t> DlssNrEvaluationCadence { 1u };
     // Toggles the pass in game. Unbound by default -- a key that does something unexpected is worse
     // than one that does nothing.
     CustomOptional<int> DlssNrToggleKey { UnboundKey };
