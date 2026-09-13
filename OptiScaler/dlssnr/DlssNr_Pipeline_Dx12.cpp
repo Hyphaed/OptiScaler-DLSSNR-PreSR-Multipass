@@ -90,6 +90,25 @@ ShaderPass_Dx12 MakeDlssNrPass(DlssNr_Dx12& shader, ID3D12Device* device, ID3D12
     const auto states = DlssNr::ResolveInputStates_Dx12(interop);
     const bool supportedSubrects = HasSupportedNrSubrects(parameters, beforeUpscale);
 
+    // TEMPORARY DIAGNOSTIC (ADR-013 investigation): does this game supply a reactive/UI-bias mask
+    // at all? DlssNr_Proxy.cpp's SetCreationParameters currently always passes DLSSNR.ControlMask
+    // as null; every other upscaler backend in this codebase already reads this same standard NGX
+    // key for its own reactive-mask handling (FFXFeature_Dx12.cpp, FSR2Feature_Dx11/Dx12_212.cpp,
+    // XeSSFeature_*.cpp). One-shot log only -- no behavior change yet.
+    {
+        static bool logged = false;
+        if (!logged)
+        {
+            logged = true;
+            ID3D12Resource* reactive = nullptr;
+            const auto result =
+                parameters->Get(NVSDK_NGX_Parameter_DLSS_Input_Bias_Current_Color_Mask, &reactive);
+            LOG_INFO("DLSS-NR diagnostic: game-supplied reactive/UI-bias mask (NVSDK_NGX_Parameter_"
+                     "DLSS_Input_Bias_Current_Color_Mask) result=0x{:X} resource={}",
+                     (uint32_t) result, reactive != nullptr ? "present" : "absent");
+        }
+    }
+
     DlssNrFrameInfo frame {};
     frame.BeforeUpscale = beforeUpscale;
     frame.PrivateColorCopy = beforeUpscale;
