@@ -343,8 +343,25 @@ auto DlssNr_Dx12::State::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Resource*
     // N>1 reprojects last frame's real model answer through this frame's own motion vectors on
     // N-1 frames out of N, instead of paying for a fresh (expensive) NGX evaluate every time.
     const unsigned int evaluationCadence = std::max(1u, cfg.DlssNrEvaluationCadence.value_or_default());
-    const bool skipEvaluateThisFrame = evaluationCadence > 1 && nr.lastEffect != nullptr && nr.lastEffectValid &&
-                                       !nr.reset && (frame.SubmissionEpoch % evaluationCadence) != 0;
+    const bool wantsSkipTurn = evaluationCadence > 1 && (frame.SubmissionEpoch % evaluationCadence) != 0;
+    const bool skipEvaluateThisFrame =
+        wantsSkipTurn && nr.lastEffect != nullptr && nr.lastEffectValid && !nr.reset;
+
+    // ADR-017 instrumentation: count every decision, not just resets, so a vitals window can be
+    // checked for internal consistency (skips + evaluates == frames) instead of taking either
+    // number on faith. This is what the ADR-014/ADR-016 contradiction (measured cost-halving vs.
+    // a claimed ~99.98% reset rate that should make skipping near-unreachable) needed from the start.
+    if (evaluationCadence > 1)
+    {
+        if (!wantsSkipTurn)
+            ++cadenceEvaluates;
+        else if (skipEvaluateThisFrame)
+            ++cadenceSkips;
+        else if (nr.reset)
+            ++cadenceSkipBlockedByReset;
+        else
+            ++cadenceSkipBlockedByInvalidHistory;
+    }
 
     if (skipEvaluateThisFrame)
     {
@@ -370,6 +387,7 @@ auto DlssNr_Dx12::State::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Resource*
         }
         else
         {
+            ++cadenceCarryForwardFailed;
             LOG_WARN("DLSS-NR: evaluation-cadence carry-forward dispatch failed, evaluating this "
                      "frame instead");
         }

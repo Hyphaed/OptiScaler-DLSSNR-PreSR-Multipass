@@ -90,6 +90,9 @@ void DlssNr_Dx12::State::EndGpuTiming(ID3D12GraphicsCommandList* cmdList, ID3D12
 
             if (lastGpuTime.has_value() && lastNgxTime.has_value() && frames - lastSplitLog > 600)
             {
+                // Captured before lastSplitLog is overwritten below - this is the actual window size
+                // the cadence counters below need, not a value that's already been zeroed against itself.
+                const unsigned long long windowFrames = frames - lastSplitLog;
                 lastSplitLog = frames;
                 const double total = lastGpuTime.value();
                 const double ngx = lastNgxTime.value();
@@ -114,6 +117,38 @@ void DlssNr_Dx12::State::EndGpuTiming(ID3D12GraphicsCommandList* cmdList, ID3D12
                              "|model_mean_ms={:.2f}|model_p99_ms={:.2f}|resets={}|effective_passes={}",
                              frames, summary.sampleCount, summary.totalMean, summary.totalP99, summary.innerMean,
                              summary.innerP99, resets, loggedEffective);
+
+                    // ADR-014/017: cadence-decoupling counters, reported as this window's deltas
+                    // (never a running total with no denominator) so the line is self-checkable:
+                    // window_frames == evaluates + skips + skip_blocked_by_reset +
+                    // skip_blocked_by_invalid_history must hold, or the counting itself is broken.
+                    // Only printed once cadence has actually been configured >1 at least once.
+                    if (cadenceEvaluates || cadenceSkips || cadenceSkipBlockedByReset ||
+                        cadenceSkipBlockedByInvalidHistory || cadenceCarryForwardFailed)
+                    {
+                        const unsigned long long windowResets = resets - lastResetsAtLog;
+                        const unsigned long long windowEvaluates = cadenceEvaluates - lastCadenceEvaluatesAtLog;
+                        const unsigned long long windowSkips = cadenceSkips - lastCadenceSkipsAtLog;
+                        const unsigned long long windowBlockedByReset =
+                            cadenceSkipBlockedByReset - lastCadenceSkipBlockedByResetAtLog;
+                        const unsigned long long windowBlockedByInvalidHistory =
+                            cadenceSkipBlockedByInvalidHistory - lastCadenceSkipBlockedByInvalidHistoryAtLog;
+                        const unsigned long long windowCarryForwardFailed =
+                            cadenceCarryForwardFailed - lastCadenceCarryForwardFailedAtLog;
+
+                        LOG_INFO("DLSS-NR-CADENCE|window_frames={}|window_resets={}|evaluates={}|skips={}"
+                                 "|skip_blocked_by_reset={}|skip_blocked_by_invalid_history={}"
+                                 "|carry_forward_dispatch_failed={}",
+                                 windowFrames, windowResets, windowEvaluates, windowSkips, windowBlockedByReset,
+                                 windowBlockedByInvalidHistory, windowCarryForwardFailed);
+
+                        lastResetsAtLog = resets;
+                        lastCadenceEvaluatesAtLog = cadenceEvaluates;
+                        lastCadenceSkipsAtLog = cadenceSkips;
+                        lastCadenceSkipBlockedByResetAtLog = cadenceSkipBlockedByReset;
+                        lastCadenceSkipBlockedByInvalidHistoryAtLog = cadenceSkipBlockedByInvalidHistory;
+                        lastCadenceCarryForwardFailedAtLog = cadenceCarryForwardFailed;
+                    }
                 }
             }
         }
