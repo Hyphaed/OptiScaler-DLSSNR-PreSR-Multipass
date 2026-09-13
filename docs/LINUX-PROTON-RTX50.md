@@ -280,6 +280,34 @@ This is what actually caught the cadence-decoupling result above - the model-mea
 in the log without needing MangoHud, a Python script, or a human watching a frame counter. Full
 write-up: `workflow/decisions/ADR-015`.
 
+## Signal-quality audit: a latent motion-vector-scale gap, found and fixed
+
+Audited the 4 real explicit inputs (color/depth/motion/exposure) against NVIDIA's own reference
+DLSS SDK helper code (`research/nvidia/dlss/include/nvsdk_ngx_helpers_d3d.h`) rather than assuming
+this fork's existing handling was correct. Found one real, if latent, gap: `PreExposure` already
+gets a "treat a degenerate value as the safe default" guard
+(`DlssNr_Pipeline_Dx12.cpp`, `if (frame.PreExposure <= 1e-6f) frame.PreExposure = 1.0f;`), but the
+immediately-adjacent `MvScaleX`/`MvScaleY` reads had no equivalent - despite NVIDIA's own reference
+helper explicitly doing exactly this for MV.Scale (`InMVScaleX == 0.0f ? 1.0f : InMVScaleX`). Not
+triggered on 007 First Light today (its logged scale is a clearly nonzero `-853 x 480`), but a game
+that ever reports an explicit `0.0` (a transient not-yet-computed value, an init-order race) would
+have made every motion vector this pass reads collapse to zero - breaking MV-based reprojection in
+both the RR residual accumulator (ADR-011/012) and the new evaluation-cadence carry-forward
+(ADR-014) exactly the way both are designed to prevent. Fixed with the same guard NVIDIA's own code
+uses. Depth subrect handling and exposure tracking showed no equivalent gap in the same pass.
+
+## Cadence=2 capture attempt: technically clean, landed on a static screen
+
+Used this fork's own built-in frame-capture mechanism (`dlssnr-capture.trigger`, writes real
+before/after `.raw` frame pairs - decoded locally with a small script, R11G11B10_FLOAT, Reinhard
+tonemap) to get a real visual read on cadence=2 without needing a human watching live. Result:
+technically clean (no crash, no corruption, no visible artifact in the NR edit itself), but the
+8 captured frames showed essentially zero motion (max pixel delta 2/255 across the whole run) -
+the game was sitting on a static, non-gameplay screen (a menu or completed loading screen, most
+likely, matching a ~70% DLSS history-reset rate observed in the same session - games commonly
+force continuous resets while paused/at a menu). This doesn't exercise reprojection under real
+motion, so it doesn't answer the real question. Genuine validation still needs a live play session.
+
 ## ReversibleMode was undiscoverable
 
 `DlssNrReversibleMode` has existed in `Config.h` since the hybrid-proxy commits (7ffcf8ee,
