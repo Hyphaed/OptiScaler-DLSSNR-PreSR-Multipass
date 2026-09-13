@@ -124,6 +124,15 @@ shows a clear refusal followed by a successful plain-DLSS creation, with no `BAD
 FSR 2.1.2 fallback. DX12 only for now - the Vulkan backend-selection path is structurally
 different and untouched.
 
+**ControlMask experiment, run to a conclusion.** Two live-tested rounds (motion-vectors as probe,
+then colour buffer as probe - deliberately wrong format/content both times, reusing existing
+resources rather than building new synthetic-pattern generation blind): `EvaluateFeature` returned
+`0x1` (success) both times, identical to the null baseline, zero Xid, no visible difference
+observed (round 1 only, human-confirmed; round 2 launched unattended). Inconclusive-leaning-negative,
+not a clean negative - two different probes producing the same non-effect is real signal, but a
+controlled synthetic pattern (all-max, checkerboard) would be a stronger test than this session
+built. Full write-up: `workflow/decisions/ADR-013`.
+
 **Known conservatism, from the official RR programming guide**: Streamline's own DLSS-RR guide
 (`research/nvidia/streamline/docs/ProgrammingGuideDLSS_RR.md`, section 4.1) documents that a real
 integration may pack roughness into the normals texture's alpha channel
