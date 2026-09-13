@@ -99,10 +99,14 @@ combination is a quality *downgrade* from DLSS + NR, not an upgrade - any FPS or
 improvement observed here is explained entirely by FSR 2.1.2 being cheaper than DLSS, not by
 Ray Reconstruction doing anything.
 
-Not something OptiScaler can safely paper over with a config default: it would need to detect,
-before substituting DLSSD, whether the game's NGX parameter set actually contains the G-buffer
-inputs RR requires, and refuse the substitution (or synthesize safe defaults) when it doesn't.
-Flagging as a real gap rather than shipping a change against it.
+**Update: implemented and validated.** `TryCreateOptiFeature` now checks, before substituting
+DLSSD for a `SuperSampling` call, whether the game's own NGX parameter block carries
+`GBuffer.Normals` and `GBuffer.Roughness` (`GameSuppliesRRInputs()`) - the two most fundamental
+inputs any ray/path-traced renderer would expose. Absent either, it refuses the substitution and
+uses the auto-detected backend instead. Built and live-tested against this exact game: the log now
+shows a clear refusal followed by a successful plain-DLSS creation, with no `BAD00005` and no
+FSR 2.1.2 fallback. DX12 only for now - the Vulkan backend-selection path is structurally
+different and untouched.
 
 ## Multipass (`Passes=2`) reintroduces grain and costs ~30% FPS at default tuning
 
