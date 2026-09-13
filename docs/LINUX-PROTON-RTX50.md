@@ -136,6 +136,31 @@ Not fully closed: damping pass 2 via `DlssNrPass2Intensity`/`DlssNrPass2LocalStr
 already exposes and this session did not test. `Passes=1` is the deployed config until that's
 tried.
 
+## External research: sharpening/grain ordering, and a future-R&D direction
+
+NVIDIA's own NVIDIA Image Scaling SDK (`NIS`, MIT-licensed, not currently integrated into
+OptiScaler - checked, no `NIS`/`NVScaler`/`NVSharpen` references anywhere in this tree) documents
+in its README exactly the mechanism behind the multipass grain finding above, independently of
+this project: "sharpening algorithms can enhance noisy or grainy regions... certain effects such
+as film grain should occur after NVScaler or NVSharpen." That is NVIDIA's own stated ordering rule
+for their spatial sharpening/scaling pass, and it corroborates ADR-009's mechanism (detail
+injection amplifies whatever noise-like signal is already present) from an independent,
+official source rather than only the general iterative-refinement literature cited there.
+
+`arXiv:2605.23902` ("PiD: Fast and High-Resolution Latent Decoding with Pixel Diffusion" - Ren,
+Fidler, et al.) reformulates latent-to-pixel decoding as a few-step, sigma-aware (noise-level
+aware) conditional diffusion process, distilled to 4 inference steps, decoding 512x512 to
+2048x2048 in under 1s on an RTX 5090 (210ms on a GB200 datacenter GPU). Classified per this
+project's own applicability tiers: **interesting but impractical today** - even its fastest
+reported figure (210ms, on hardware far above a 5070) is roughly 15x this game's entire 13.3ms/
+frame budget at 75Hz, so it cannot run per-frame in a real-time NR pipeline as published. The
+architecturally relevant idea for **future research** is the "sigma-aware adapter": the model
+knows how corrupted/uncertain its own input is and conditions its output strength on that,
+rather than applying a fixed-strength operator regardless of input confidence. That is precisely
+what `PassProfiles.h`'s multipass tuning lacks today (ADR-009) - a per-pass sense of how much
+new information is actually left to extract, rather than a fixed `intensity=1.0` inherited
+unconditionally from pass 1.
+
 ## ReversibleMode was undiscoverable
 
 `DlssNrReversibleMode` has existed in `Config.h` since the hybrid-proxy commits (7ffcf8ee,
