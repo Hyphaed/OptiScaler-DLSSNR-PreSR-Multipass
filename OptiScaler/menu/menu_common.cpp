@@ -168,6 +168,7 @@ static std::vector<std::string> splashText = { "Cope smarter, not harder",
                                                "Nitec's Bizarre Upscaling",
                                                "\"Framegen really attracts some strange clientelle\"",
                                                "How to remove those corny messages?!",
+                                               "Ferran was coding around",
                                                "<Your funny text goes here>" };
 
 static std::string updateNoticeTag;
