@@ -108,12 +108,12 @@ void DlssNr_Dx12::State::EndGpuTiming(ID3D12GraphicsCommandList* cmdList, ID3D12
                 {
                     LOG_INFO("DLSS-NR vitals: last {} frames, total mean {:.2f} ms p99 {:.2f} ms, "
                              "model mean {:.2f} ms p99 {:.2f} ms, resets {}, effective passes {}",
-                             summary.sampleCount, summary.totalMean, summary.totalP99, summary.ngxMean,
-                             summary.ngxP99, resets, loggedEffective);
+                             summary.sampleCount, summary.totalMean, summary.totalP99, summary.innerMean,
+                             summary.innerP99, resets, loggedEffective);
                     LOG_INFO("DLSS-NR-VITALS|frames={}|samples={}|total_mean_ms={:.2f}|total_p99_ms={:.2f}"
                              "|model_mean_ms={:.2f}|model_p99_ms={:.2f}|resets={}|effective_passes={}",
-                             frames, summary.sampleCount, summary.totalMean, summary.totalP99, summary.ngxMean,
-                             summary.ngxP99, resets, loggedEffective);
+                             frames, summary.sampleCount, summary.totalMean, summary.totalP99, summary.innerMean,
+                             summary.innerP99, resets, loggedEffective);
                 }
             }
         }
