@@ -4,6 +4,8 @@
 
 #include "Util.h"
 
+#include <algorithm>
+
 #include "nvapi/fakenvapi.h"
 #include <hooks/Streamline_Hooks.h>
 #include <misc/IdentifyGpu.h>
@@ -918,6 +920,77 @@ bool Config::LoadFromPath(const wchar_t* InPath)
     }
 
     return false;
+}
+
+namespace
+{
+// Keeps a typed profile name inside the profiles folder -- strips path separators and the
+// parent-directory token so a name typed into the menu can never write or read outside it.
+std::wstring SanitizeProfileName(const std::wstring& name)
+{
+    std::wstring safe;
+    safe.reserve(name.size());
+    for (wchar_t c : name)
+    {
+        if (c == L'/' || c == L'\\' || c == L':')
+            continue;
+        safe += c;
+    }
+    while (safe.starts_with(L".."))
+        safe.erase(0, 2);
+    return safe;
+}
+} // namespace
+
+std::filesystem::path ProfilesDirectory()
+{
+    return Util::DllPath().parent_path() / "OptiScalerProfiles";
+}
+
+bool Config::SaveProfile(const std::wstring& profileName)
+{
+    auto safeName = SanitizeProfileName(profileName);
+    if (safeName.empty())
+        return false;
+
+    auto dir = ProfilesDirectory();
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+
+    auto original = absoluteFileName;
+    absoluteFileName = dir / (safeName + L".ini");
+    bool ok = SaveIni();
+    absoluteFileName = original;
+    return ok;
+}
+
+bool Config::LoadProfile(const std::wstring& profileName)
+{
+    auto safeName = SanitizeProfileName(profileName);
+    if (safeName.empty())
+        return false;
+
+    return Reload(ProfilesDirectory() / (safeName + L".ini"));
+}
+
+std::vector<std::string> Config::ListProfiles()
+{
+    std::vector<std::string> names;
+    std::error_code ec;
+    auto dir = ProfilesDirectory();
+    if (!std::filesystem::exists(dir, ec))
+        return names;
+
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec))
+    {
+        if (ec || !entry.is_regular_file())
+            continue;
+        if (entry.path().extension() != L".ini")
+            continue;
+        names.push_back(wstring_to_string(entry.path().stem().wstring()));
+    }
+    std::sort(names.begin(), names.end());
+    return names;
 }
 
 std::string GetBoolValue(std::optional<bool> value)

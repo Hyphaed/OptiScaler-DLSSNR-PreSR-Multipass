@@ -954,6 +954,14 @@ class Config
     bool SaveIni();
     bool SaveXeFG();
 
+    // Per-game config profiles, saved under a "profiles" folder next to OptiScaler.ini. A profile
+    // is a full copy of the current live config (the same fields SaveIni writes), just parked
+    // under its own name instead of the active ini -- loading one applies its values immediately
+    // to the running config, exactly like switching to a different OptiScaler.ini would.
+    bool SaveProfile(const std::wstring& profileName);
+    bool LoadProfile(const std::wstring& profileName);
+    std::vector<std::string> ListProfiles();
+
     void CheckUpscalerFiles();
 
     std::vector<std::string> GetConfigLog();

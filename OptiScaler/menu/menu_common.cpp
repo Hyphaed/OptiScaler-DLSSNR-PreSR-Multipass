@@ -6269,6 +6269,112 @@ void MenuCommon::RenderLoggingSettings(RenderMenuContext& ctx)
     }
 }
 
+void MenuCommon::RenderProfilesSettings(RenderMenuContext& ctx)
+{
+    auto config = ctx.config;
+
+    // PROFILES -----------------------------
+    ImGui::Spacing();
+    if (auto ch = ScopedCollapsingHeader("Profiles"); ch.IsHeaderOpen())
+    {
+        ScopedIndent indent {};
+        ImGui::Spacing();
+        ImGui::TextWrapped("Save the current settings under a name, or load a previously saved one. "
+                           "Different games can need very different tuning - keep one profile per game.");
+        ImGui::Spacing();
+
+        static char nameBuffer[128] = "";
+        static std::vector<std::string> profiles;
+        static bool profilesLoaded = false;
+        static int selectedProfile = -1;
+        static std::string statusMessage;
+        static bool statusIsError = false;
+
+        if (!profilesLoaded)
+        {
+            profiles = config->ListProfiles();
+            profilesLoaded = true;
+        }
+
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+        ImGui::InputTextWithHint("##ProfileName", "Profile name (e.g. 007 First Light)", nameBuffer,
+                                 IM_ARRAYSIZE(nameBuffer));
+        ImGui::SameLine();
+        if (ImGui::Button("Save"))
+        {
+            std::string name(nameBuffer);
+            if (name.empty())
+            {
+                statusMessage = "Type a profile name first.";
+                statusIsError = true;
+            }
+            else if (config->SaveProfile(string_to_wstring(name)))
+            {
+                statusMessage = "Saved profile: " + name;
+                statusIsError = false;
+                profilesLoaded = false; // re-list next frame, the new name may not be in it yet
+            }
+            else
+            {
+                statusMessage = "Failed to save profile: " + name;
+                statusIsError = true;
+            }
+        }
+
+        ImGui::Spacing();
+
+        if (profiles.empty())
+        {
+            ImGui::TextDisabled("No saved profiles yet.");
+        }
+        else
+        {
+            if (selectedProfile >= (int) profiles.size())
+                selectedProfile = -1;
+
+            const char* previewLabel = selectedProfile >= 0 ? profiles[selectedProfile].c_str() : "Select a profile";
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+            if (ImGui::BeginCombo("##ProfileList", previewLabel))
+            {
+                for (int i = 0; i < (int) profiles.size(); ++i)
+                {
+                    bool selected = (i == selectedProfile);
+                    if (ImGui::Selectable(profiles[i].c_str(), selected))
+                        selectedProfile = i;
+                    if (selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Load"))
+            {
+                if (selectedProfile < 0)
+                {
+                    statusMessage = "Select a profile to load first.";
+                    statusIsError = true;
+                }
+                else if (config->LoadProfile(string_to_wstring(profiles[selectedProfile])))
+                {
+                    statusMessage = "Loaded profile: " + profiles[selectedProfile];
+                    statusIsError = false;
+                }
+                else
+                {
+                    statusMessage = "Failed to load profile: " + profiles[selectedProfile];
+                    statusIsError = true;
+                }
+            }
+        }
+
+        if (!statusMessage.empty())
+        {
+            const auto colour = statusIsError ? ImVec4(1.0f, 0.5f, 0.5f, 1.0f) : ImVec4(0.5f, 1.0f, 0.5f, 1.0f);
+            ImGui::TextColored(colour, "%s", statusMessage.c_str());
+        }
+    }
+}
+
 void MenuCommon::RenderThemeSettings(RenderMenuContext& ctx)
 {
     auto config = ctx.config;
@@ -7194,6 +7300,7 @@ void MenuCommon::RenderMainMenuTable(RenderMenuContext& ctx)
         RenderQuirksSettings(ctx);
         RenderAdvancedSettings(ctx);
         RenderLoggingSettings(ctx);
+        RenderProfilesSettings(ctx);
         RenderThemeSettings(ctx);
         RenderFpsOverlaySettings(ctx);
         RenderUpscalerInputsSettings(ctx);
