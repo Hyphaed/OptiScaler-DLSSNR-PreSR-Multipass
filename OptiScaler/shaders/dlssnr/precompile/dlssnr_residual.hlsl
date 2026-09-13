@@ -14,6 +14,20 @@
 //               uncorrelated and averages to zero; the enhancement term follows geometry and
 //               persists. Invalid reprojection (off-screen / bad MV) -> the
 //               history is treated as zero at that pixel and rebuilds over the next frames.
+//
+//               `blend` is not the single gResidualBlend scalar: it is gResidualBlend widened
+//               toward 1 by a per-pixel confidence gate, in proportion to how much this frame's
+//               freshly-computed edit disagrees with what the reprojected history predicted.
+//               Full agreement keeps gResidualBlend's stable floor; a disocclusion the binary
+//               valid/invalid test missed, a lighting change, or a genuinely invalid reprojection
+//               (history forced to 0 above) all show up as disagreement and blend in faster
+//               instead of fading in over several frames at the same fixed rate regardless of
+//               cause. This is an adaptation, not a port, of NRD's history-confidence concept
+//               (research/nvidia/nrd/README.md, "HISTORY CONFIDENCE": "An application should not
+//               rely solely on the anti-lag provided by REBLUR/RELAX") to what this pass actually
+//               has: no re-traced radiance to diff a stored value against, only its own
+//               reprojected accumulation and this frame's edit, so "disagreement" here is their
+//               local difference rather than a separate gradient pass over ground-truth radiance.
 //   gMode == 1  Apply: base + delta * gTransferStrength, clamped non-negative. Run after RR+SR
 //               with the upscaled history layer as the delta.
 
@@ -57,6 +71,7 @@ cbuffer Params : register(b0)
     uint gResidualHistoryValid;
     uint gResidualMotionBaseX;
     uint gResidualMotionBaseY;
+    float gResidualConfidenceSensitivity;  // v2 confidence gate; see file header comment.
 };
 
 // Same registers and the same SPIR-V binding numbers as dlssnr.hlsl, including the slots these
@@ -125,9 +140,12 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         float3 history = valid ? gOriginal.SampleLevel(gLinear, prevUV, 0).rgb : float3(0.0, 0.0, 0.0);
         history = SanitizeFinite3(history, float3(0.0, 0.0, 0.0));
 
-        // Invalid reprojection: history is 0, so the pixel fades in from no edit at the normal blend
-        // rate over the next frames. A cold start/cut also fades in, without sampling uninitialized history.
-        float a = clamp(gResidualBlend, 0.0, 1.0);
+        // Confidence gate: see the file header comment. Disagreement in [0,1], 0 = history still
+        // predicts this frame's edit, 1 = fully stale (including the invalid-reprojection case,
+        // where history is 0 and any non-trivial delta disagrees maximally by construction).
+        float sensitivity = max(gResidualConfidenceSensitivity, 1e-4);
+        float disagreement = saturate(length(delta - history) / sensitivity);
+        float a = lerp(clamp(gResidualBlend, 0.0, 1.0), 1.0, disagreement);
 
         gTarget[id.xy] = float4(lerp(history, delta, a), 1.0);
         return;

@@ -329,6 +329,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrPrivateUpscaler.set_from_config(readInt("DlssNr", "PrivateUpscaler"));
             DlssNrResidualAcrossRr.set_from_config(readBool("DlssNr", "ResidualAcrossRR"));
             DlssNrResidualAcrossRrBlend.set_from_config(readFloat("DlssNr", "ResidualAcrossRRBlend"));
+            DlssNrResidualConfidenceSensitivity.set_from_config(
+                readFloat("DlssNr", "ResidualConfidenceSensitivity"));
             DlssNrToggleKey.set_from_config(readInt("DlssNr", "ToggleKey"));
             DlssNrTransferStrength.set_from_config(readFloat("DlssNr", "TransferStrength"));
             DlssNrColourStrength.set_from_config(readFloat("DlssNr", "ColourStrength"));
@@ -1261,6 +1263,8 @@ bool Config::SaveIni()
                  GetBoolValue(Instance()->DlssNrResidualAcrossRr.value_for_config()).c_str());
     ini.SetValue("DlssNr", "ResidualAcrossRRBlend",
                  GetFloatValue(Instance()->DlssNrResidualAcrossRrBlend.value_for_config()).c_str());
+    ini.SetValue("DlssNr", "ResidualConfidenceSensitivity",
+                 GetFloatValue(Instance()->DlssNrResidualConfidenceSensitivity.value_for_config()).c_str());
     ini.Delete("DlssNr", "ResidualFG");
     ini.Delete("DlssNr", "ResidualFGApproxCamera");
     ini.Delete("DlssNr", "UseProxy");

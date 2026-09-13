@@ -272,6 +272,10 @@ class Config
     CustomOptional<bool> DlssNrResidualAcrossRr { false };
     // RR residual history blend before private upscaling; v0.7.7 default, clamped to 0.01..1.
     CustomOptional<float> DlssNrResidualAcrossRrBlend { 0.08f };
+    // Confidence-gate sensitivity for the above: length of this frame's edit-vs-history
+    // disagreement, in linear delta units, at which the blend rate reaches 1 (immediate replace).
+    // See dlssnr_residual.hlsl and ADR-011/012 for the full rationale.
+    CustomOptional<float> DlssNrResidualConfidenceSensitivity { 0.25f };
     // Toggles the pass in game. Unbound by default -- a key that does something unexpected is worse
     // than one that does nothing.
     CustomOptional<int> DlssNrToggleKey { UnboundKey };
