@@ -58,9 +58,26 @@ injection path - it reproduces identically whether the `sl.dlss_g.dll` plugin lo
 own folder or from OptiScaler's private `OptiScaler/streamline/` copy, since both go through the
 same DXVK-NVAPI shim. Choosing a different plugin location does not route around it.
 
-Not attempted here, but worth trying based on other users' reports in this project's discussions:
-FSR-FG or XeFG through OptiScaler's own FG (`FGOutput=fsrfg` / `xefg`) instead of `dlssg` - neither
-depends on the same NVIDIA Reflex-sync path.
+**Update: FSR-FG through OptiScaler also fails on this game, via a different root cause.** Tested
+`FGInput=dlssg` + `FGOutput=fsrfg` (with `amd_fidelityfx_loader_dx12.dll` and
+`amd_fidelityfx_framegeneration_dx12.dll` present) specifically to avoid the Reflex-Sync path
+above - it doesn't depend on the same NVIDIA API surface, and other users in this project's
+discussions reported it working where DLSS-FG didn't. Here it produced Xid 13 (Graphics
+Exception) and a hung process ~9 seconds after launch. The log shows the actual mechanism:
+repeated `Streamline supports only one DXGISwapChain (...). Skipping some Present() hooks for
+DXGISwapChain (...)` warnings, immediately followed by `vkQueueSubmit error: FFFFFFFC`
+(`VK_ERROR_DEVICE_LOST`) specifically inside OptiScaler's own `MenuOverlayVk` - a dual-swapchain /
+Vulkan-interop conflict between the FFX FG bridge and OptiScaler's own overlay renderer, unrelated
+to Streamline or Reflex-Sync entirely. Confirmed against NVIDIA's own published Vulkan Reflex SDK
+(`NvLowLatencyVk.h`) that no Reflex-Sync/Dynamic-MFG function is published in the public API at
+all - not merely unimplemented, there's no documented hook to build one against. Filed as
+[vkd3d-proton#3292](https://github.com/HansKristian-Work/vkd3d-proton/issues/3292) rather than
+ship a speculative patch against undocumented driver-internal behaviour.
+
+Not attempted: XeFG (`FGOutput=xefg`) - a third, separate FG technology this fork supports that
+also doesn't depend on Reflex-Sync. Given FSR-FG's failure was an overlay/swapchain conflict
+rather than anything FSR-specific, XeFG may hit the same conflict, or may not - worth testing
+before concluding no FG technology works here.
 
 ## ReversibleMode was undiscoverable
 
