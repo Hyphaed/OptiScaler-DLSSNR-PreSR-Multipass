@@ -332,6 +332,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrResidualConfidenceSensitivity.set_from_config(
                 readFloat("DlssNr", "ResidualConfidenceSensitivity"));
             DlssNrControlMaskTestPattern.set_from_config(readInt("DlssNr", "ControlMaskTestPattern"));
+            DlssNrBidirDistortionTestPattern.set_from_config(readInt("DlssNr", "BidirDistortionTestPattern"));
             DlssNrEvaluationCadence.set_from_config(readUInt("DlssNr", "EvaluationCadence"));
             DlssNrToggleKey.set_from_config(readInt("DlssNr", "ToggleKey"));
             DlssNrTransferStrength.set_from_config(readFloat("DlssNr", "TransferStrength"));

@@ -264,6 +264,23 @@ unsigned int Context::Impl::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Device
     SetUInt(params, "DLSSNR.ControlMaskSubrectHeight",
             controlMaskProbe == nullptr ? 0u : controlMaskTestPattern == 1 ? motionHeight : height);
 
+    // TEMPORARY EXPERIMENT (Phase 5 unexplored-inputs audit, remove after use). DLSSNR.
+    // BidirectionalDistortionField is a real, currently-unused optional input -- confirmed via direct
+    // strings/objdump analysis of the deployed nvngx_dlssnr.dll, with full subrect addressing exactly
+    // like Color/Depth/MVec/ControlMask. Never referenced anywhere in this codebase before now, and no
+    // source or public documentation explains its semantics -- the name suggests some form of per-pixel
+    // UV/lens correction, but that is a guess, not a finding. Same cheapest-possible test as the
+    // ControlMask experiment: does Feature 18 respond to anything bound here at all. Colour as probe
+    // (high dynamic range, strong per-pixel structure) rather than motion, since motion-as-probe was
+    // inconclusive for ControlMask.
+    const auto bidirDistortionTestPattern = Config::Instance()->DlssNrBidirDistortionTestPattern.value_or_default();
+    ID3D12Resource* bidirDistortionProbe = bidirDistortionTestPattern == 1 ? color : nullptr;
+    SetResource(params, "DLSSNR.BidirectionalDistortionField", bidirDistortionProbe);
+    SetUInt(params, "DLSSNR.BidirectionalDistortionFieldSubrectBaseX", 0u);
+    SetUInt(params, "DLSSNR.BidirectionalDistortionFieldSubrectBaseY", 0u);
+    SetUInt(params, "DLSSNR.BidirectionalDistortionFieldSubrectWidth", bidirDistortionProbe == nullptr ? 0u : width);
+    SetUInt(params, "DLSSNR.BidirectionalDistortionFieldSubrectHeight", bidirDistortionProbe == nullptr ? 0u : height);
+
     SetUInt(params, "DLSSNR.Enabled", 1u);
     SetUInt(params, "DLSSNR.Width", width);
     SetUInt(params, "DLSSNR.Height", height);
@@ -316,6 +333,17 @@ unsigned int Context::Impl::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Device
             logged = true;
             LOG_INFO("DLSS-NR ControlMask experiment: probe={} EvaluateFeature result=0x{:X}",
                      controlMaskProbeName, (unsigned int) result);
+        }
+    }
+
+    if (bidirDistortionTestPattern != 0)
+    {
+        static bool logged = false;
+        if (!logged)
+        {
+            logged = true;
+            LOG_INFO("DLSS-NR BidirectionalDistortionField experiment: probe={} EvaluateFeature result=0x{:X}",
+                     bidirDistortionProbe == nullptr ? "null" : "color-as-probe", (unsigned int) result);
         }
     }
 

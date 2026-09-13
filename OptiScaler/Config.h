@@ -280,6 +280,12 @@ class Config
     // stays null, current behaviour). Nonzero = bind the motion-vectors resource as a stand-in probe
     // for DLSSNR.ControlMask, to test whether Feature 18 responds to anything bound there at all.
     CustomOptional<int> DlssNrControlMaskTestPattern { 0 };
+    // TEMPORARY (Phase 5 unexplored-inputs audit, remove after use): DLSSNR.BidirectionalDistortionField
+    // is a real, currently-unused optional input -- confirmed via strings/objdump on the deployed
+    // nvngx_dlssnr.dll, with the same subrect addressing as Color/Depth/MVec/ControlMask. Never
+    // referenced anywhere in this codebase before now. 0 = off (stays null, current behaviour).
+    // 1 = bind colour as a probe (high per-pixel structure, most likely to reveal any consumption).
+    CustomOptional<int> DlssNrBidirDistortionTestPattern { 0 };
     // NR evaluation-cadence decoupling (ADR-014). 1 (default) = evaluate every frame, the existing
     // behaviour, unchanged. N>1 = evaluate one frame in N; the other N-1 frames reproject the last
     // real answer through that frame's own motion vectors instead of paying for a fresh NGX
