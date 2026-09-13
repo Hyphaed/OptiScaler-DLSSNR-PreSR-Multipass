@@ -1,6 +1,6 @@
 #pragma once
 #include "DlssNr_Dx12_ModelState.h"
-#include "DlssNr_Vitals.h"
+#include <gpu_time/Vitals.h>
 #include <dlssnr/DlssNr_Placement.h>
 #include <dlssnr/DlssNr_FinishedReady.h>
 #include <dlssnr/PassProfiles.h>
@@ -92,9 +92,10 @@ struct DlssNr_Dx12::State
     std::optional<double> lastNgxTime;
     std::optional<double> lastGpuTime;
 
-    // Rolling window behind the periodic split log below - see DlssNr_Vitals.h for why a single
-    // snapshot sample undersells what "every 600 frames" should actually be reporting.
-    DlssNr::DlssNrVitals vitals;
+    // Rolling window behind the periodic split log below - see gpu_time/Vitals.h (project-wide,
+    // not DLSS-NR-specific) for why a single snapshot sample undersells what "every 600 frames"
+    // should actually be reporting.
+    OptiScaler::RollingVitals vitals;
 
     // Writes matched before/after frames on request, so comparisons stop depending on video.
     capture::FrameCapture captureFrames;
