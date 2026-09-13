@@ -610,6 +610,12 @@ class Config
     CustomOptional<float, NoDefault> MenuScale;
     CustomOptional<bool> OverlayMenu { true };
     CustomOptional<int> ShortcutKey { VK_INSERT };
+    // Require Ctrl/Alt held alongside ShortcutKey - a plain letter/digit key alone is prone to
+    // colliding with a game's own input or text entry (e.g. "O"); a modifier chord like Ctrl+Alt+O
+    // is far less likely to be bound to anything the game itself listens for. Both default false
+    // so every existing single-key ShortcutKey setup is completely unaffected.
+    CustomOptional<bool> ShortcutKeyRequireCtrl { false };
+    CustomOptional<bool> ShortcutKeyRequireAlt { false };
     CustomOptional<bool> ExtendedLimits { false };
     CustomOptional<bool> ShowFps { false };
     /// 0 Top Left, 1 Top Right, 2 Bottom Left, 3 Bottom Right

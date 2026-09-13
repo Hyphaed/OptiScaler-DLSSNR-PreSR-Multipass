@@ -556,6 +556,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             // Don't enable again if set false because of Linux issue
             OverlayMenu.set_from_config(readBool("Menu", "OverlayMenu"));
             ShortcutKey.set_from_config(readInt("Menu", "ShortcutKey"));
+            ShortcutKeyRequireCtrl.set_from_config(readBool("Menu", "ShortcutKeyRequireCtrl"));
+            ShortcutKeyRequireAlt.set_from_config(readBool("Menu", "ShortcutKeyRequireAlt"));
             ExtendedLimits.set_from_config(readBool("Menu", "ExtendedLimits"));
             ShowFps.set_from_config(readBool("Menu", "ShowFps"));
             UseHQFont.set_from_config(readBool("Menu", "UseHQFont"));
@@ -1481,6 +1483,10 @@ bool Config::SaveIni()
         auto setting = Instance()->ShortcutKey.value_for_config();
         ini.SetValue("Menu", "ShortcutKey",
                      GetIntValue(Instance()->ShortcutKey.value_for_config(), setting > 0).c_str());
+        ini.SetValue("Menu", "ShortcutKeyRequireCtrl",
+                     GetBoolValue(Instance()->ShortcutKeyRequireCtrl.value_for_config()).c_str());
+        ini.SetValue("Menu", "ShortcutKeyRequireAlt",
+                     GetBoolValue(Instance()->ShortcutKeyRequireAlt.value_for_config()).c_str());
 
         ini.SetValue("Menu", "ExtendedLimits", GetBoolValue(Instance()->ExtendedLimits.value_for_config()).c_str());
         ini.SetValue("Menu", "ShowFps", GetBoolValue(Instance()->ShowFps.value_for_config()).c_str());

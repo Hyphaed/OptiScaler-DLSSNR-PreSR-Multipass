@@ -266,12 +266,29 @@ void MenuCommon::UpdateManualInput(HWND targetHwnd)
 
     const auto config = Config::Instance();
 
-    auto CheckShortcut = [&](int vk, bool& inputFlag, const char* logMessage)
+    auto CheckShortcut = [&](int vk, bool& inputFlag, const char* logMessage, bool requireCtrl = false,
+                            bool requireAlt = false)
     {
         if (inputFlag)
             return;
 
         if (vk <= 0 || vk >= 256)
+            return;
+
+        // Checked before the release edge below, not folded into it: modifiers must still be held
+        // at the moment the trigger key is released, the same convention every OS shortcut chord
+        // uses (release the letter while the modifiers are down, not "were down at some point").
+        //
+        // Checks the generic code and both L/R-specific ones: raw keyboard input
+        // (NormalizeRawKeyboardVirtualKey, input_system_raw.cpp) rewrites VK_CONTROL/VK_MENU into
+        // VK_LCONTROL/VK_RCONTROL/VK_LMENU/VK_RMENU before this table is ever touched, so the
+        // plain generic code alone would never read as down on that path - checking only it would
+        // make this feature silently never fire depending on which input path is active.
+        if (requireCtrl && !OptiInput::IsKeyDown(VK_CONTROL) && !OptiInput::IsKeyDown(VK_LCONTROL) &&
+            !OptiInput::IsKeyDown(VK_RCONTROL))
+            return;
+        if (requireAlt && !OptiInput::IsKeyDown(VK_MENU) && !OptiInput::IsKeyDown(VK_LMENU) &&
+            !OptiInput::IsKeyDown(VK_RMENU))
             return;
 
         if (OptiInput::IsKeyReleased(vk))
@@ -288,7 +305,8 @@ void MenuCommon::UpdateManualInput(HWND targetHwnd)
 
     if (!capturingKey && canAcceptInputs)
     {
-        CheckShortcut(config->ShortcutKey.value_or_default(), inputMenu, "Menu key pressed, will be switching menu");
+        CheckShortcut(config->ShortcutKey.value_or_default(), inputMenu, "Menu key pressed, will be switching menu",
+                     config->ShortcutKeyRequireCtrl.value_or_default(), config->ShortcutKeyRequireAlt.value_or_default());
         CheckShortcut(config->FpsShortcutKey.value_or_default(), inputFps, "Menu key pressed, will be switching FPS");
         CheckShortcut(config->FGShortcutKey.value_or_default(), inputFG, "Menu key pressed, will be switching FG mode");
         CheckShortcut(config->FpsCycleShortcutKey.value_or_default(), inputFpsCycle,
