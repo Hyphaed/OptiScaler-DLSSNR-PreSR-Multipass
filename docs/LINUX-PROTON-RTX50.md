@@ -244,6 +244,42 @@ not the generated one, or temporal lag increases by the FG multiplier. Not curre
 DLSS-NR's own history-length/accumulation logic would need the same real-vs-generated FPS
 distinction NRD documents.
 
+## NR evaluation-cadence decoupling: real, measured GPU-cost reduction
+
+Implemented the `neural-upstream` community technique (see the NRD-comparison section above)
+generalized for this fork's main NR path: reproject last frame's real model answer through the
+current frame's motion vectors instead of paying for a fresh NGX evaluate every frame. New
+`[DlssNr] EvaluationCadence` key (default `1` = every frame, the existing behaviour, unreachable
+otherwise - the new code path is provably a no-op unless raised). Reuses the already-separate
+`dlssnr_residual.hlsl` blob (ADR-011/012) with a new `ReprojectOnly` mode rather than new shader
+infrastructure.
+
+Live-tested against 007 First Light at `EvaluationCadence=2`, measured via the new rolling-vitals
+summary (below), across three consecutive 256-frame windows: model GPU time dropped from ~5.08ms
+mean (cadence=1 baseline) to ~2.57-2.61ms mean - almost exactly half, matching the theoretical
+expectation of alternating one real evaluate with one cheap reprojection. p99 stayed close to the
+full-evaluate cost in every window, as expected (the real-evaluate frames dominate the tail). Zero
+Xid, zero dispatch failures, stable across ~1800 frames. **Not yet validated: whether the image
+looks right doing this** - reprojection artifacts (ghosting on missed disocclusion, drift on fast
+motion) need a human watching, which a log/crash check cannot substitute for. Reverted to
+`EvaluationCadence=1` pending that. Full write-up: `workflow/decisions/ADR-014`.
+
+## Rolling vitals: mean/p99 GPU cost over a real window, not one sample
+
+The existing periodic split-log (every 600 frames) reported whatever single frame happened to land
+on the 600th tick - it could miss every real spike in between. Added a 256-slot rolling window
+(`OptiScaler/gpu_time/Vitals.h`, project-wide - not DLSS-NR-specific, placed alongside
+`GpuTime_Dx12/Dx11`) behind it, adapting a lock-free ring-buffer/percentile pattern from an
+independent GreenBoost Vulkan layer (`~/Dev/greenboost_all/greenboost_gaming`) - std::sort instead
+of a hand-rolled insertion sort (STL is available here), and reporting the metric this project
+already uses (milliseconds) rather than converting to a framerate. Emits both a human-readable line
+and a pipe-delimited `DLSS-NR-VITALS|...` one, greppable by hand or any external tool without
+needing MangoHud or a separate post-processing script for NR's own GPU cost specifically.
+
+This is what actually caught the cadence-decoupling result above - the model-mean drop was visible
+in the log without needing MangoHud, a Python script, or a human watching a frame counter. Full
+write-up: `workflow/decisions/ADR-015`.
+
 ## ReversibleMode was undiscoverable
 
 `DlssNrReversibleMode` has existed in `Config.h` since the hybrid-proxy commits (7ffcf8ee,
