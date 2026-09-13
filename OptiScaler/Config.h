@@ -276,6 +276,10 @@ class Config
     // disagreement, in linear delta units, at which the blend rate reaches 1 (immediate replace).
     // See dlssnr_residual.hlsl and ADR-011/012 for the full rationale.
     CustomOptional<float> DlssNrResidualConfidenceSensitivity { 0.25f };
+    // TEMPORARY (ADR-013 control-mask experiment, remove after use): 0 = off (DLSSNR.ControlMask
+    // stays null, current behaviour). Nonzero = bind the motion-vectors resource as a stand-in probe
+    // for DLSSNR.ControlMask, to test whether Feature 18 responds to anything bound there at all.
+    CustomOptional<int> DlssNrControlMaskTestPattern { 0 };
     // Toggles the pass in game. Unbound by default -- a key that does something unexpected is worse
     // than one that does nothing.
     CustomOptional<int> DlssNrToggleKey { UnboundKey };

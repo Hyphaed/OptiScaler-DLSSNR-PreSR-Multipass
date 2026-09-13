@@ -331,6 +331,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrResidualAcrossRrBlend.set_from_config(readFloat("DlssNr", "ResidualAcrossRRBlend"));
             DlssNrResidualConfidenceSensitivity.set_from_config(
                 readFloat("DlssNr", "ResidualConfidenceSensitivity"));
+            DlssNrControlMaskTestPattern.set_from_config(readInt("DlssNr", "ControlMaskTestPattern"));
             DlssNrToggleKey.set_from_config(readInt("DlssNr", "ToggleKey"));
             DlssNrTransferStrength.set_from_config(readFloat("DlssNr", "TransferStrength"));
             DlssNrColourStrength.set_from_config(readFloat("DlssNr", "ColourStrength"));

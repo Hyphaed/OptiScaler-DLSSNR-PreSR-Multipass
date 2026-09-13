@@ -4,6 +4,7 @@
 #include "DlssNr_NgxDiagnostics.h"
 #include "DlssNr_CompatibilityRuntime.h"
 
+#include <Config.h>
 #include <Logger.h>
 #include <proxies/NVNGX_Proxy.h>
 #include <vector>
@@ -237,6 +238,24 @@ unsigned int Context::Impl::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Device
     SetResource(params, "DLSSNR.MVec", motion);
     SetResource(params, "DLSSNR.Output", output);
 
+    // TEMPORARY EXPERIMENT (ADR-013 control-mask investigation, remove after use). DLSSNR.ControlMask
+    // is a real, currently-unused optional input -- confirmed via direct strings/objdump analysis of
+    // the deployed nvngx_dlssnr.dll, with full subrect addressing exactly like Color/Depth/MVec/Output.
+    // Its actual semantics are undocumented anywhere reachable from source (Streamline's own header
+    // says only "optional 4-channel control mask", nothing about format or population strategy).
+    // Cheapest possible experiment for the one question that matters first: does Feature 18 respond to
+    // *anything* bound here at all? Reusing the motion-vectors resource as a stand-in probe --
+    // deliberately the wrong format/content, so a result-code change, a visible artifact, or a
+    // log/timing difference versus the null baseline is itself the finding, independent of whether
+    // the content is semantically meaningful. Not a claim about what the mask should actually contain.
+    const auto controlMaskTestPattern = Config::Instance()->DlssNrControlMaskTestPattern.value_or_default();
+    ID3D12Resource* controlMaskProbe = controlMaskTestPattern != 0 ? motion : nullptr;
+    SetResource(params, "DLSSNR.ControlMask", controlMaskProbe);
+    SetUInt(params, "DLSSNR.ControlMaskSubrectBaseX", 0u);
+    SetUInt(params, "DLSSNR.ControlMaskSubrectBaseY", 0u);
+    SetUInt(params, "DLSSNR.ControlMaskSubrectWidth", controlMaskProbe != nullptr ? motionWidth : 0u);
+    SetUInt(params, "DLSSNR.ControlMaskSubrectHeight", controlMaskProbe != nullptr ? motionHeight : 0u);
+
     SetUInt(params, "DLSSNR.Enabled", 1u);
     SetUInt(params, "DLSSNR.Width", width);
     SetUInt(params, "DLSSNR.Height", height);
@@ -278,6 +297,19 @@ unsigned int Context::Impl::Run(ID3D12GraphicsCommandList* cmdList, ID3D12Device
     lifetime.Record(cmdList);
     const auto result = state.compatibility ? state.compatibility->Evaluate(cmdList, state.feature, params)
                                            : NVNGXProxy::D3D12_EvaluateFeature()(cmdList, state.feature, params, nullptr);
+
+    // TEMPORARY EXPERIMENT (ADR-013, remove after use): one-shot log of whether binding something to
+    // ControlMask changes the EvaluateFeature result code at all versus the established null baseline.
+    if (controlMaskTestPattern != 0)
+    {
+        static bool logged = false;
+        if (!logged)
+        {
+            logged = true;
+            LOG_INFO("DLSS-NR ControlMask experiment: probe={} EvaluateFeature result=0x{:X}",
+                     controlMaskProbe != nullptr ? "motion-as-mask" : "null", (unsigned int) result);
+        }
+    }
 
     if (result == NVSDK_NGX_Result_Success)
     {
