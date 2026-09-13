@@ -958,7 +958,7 @@ bool Config::SaveProfile(const std::wstring& profileName)
     std::filesystem::create_directories(dir, ec);
 
     auto original = absoluteFileName;
-    absoluteFileName = dir / (safeName + L".ini");
+    absoluteFileName = dir / (safeName + L".profile");
     bool ok = SaveIni();
     absoluteFileName = original;
     return ok;
@@ -970,7 +970,7 @@ bool Config::LoadProfile(const std::wstring& profileName)
     if (safeName.empty())
         return false;
 
-    return Reload(ProfilesDirectory() / (safeName + L".ini"));
+    return Reload(ProfilesDirectory() / (safeName + L".profile"));
 }
 
 std::vector<std::string> Config::ListProfiles()
@@ -985,7 +985,7 @@ std::vector<std::string> Config::ListProfiles()
     {
         if (ec || !entry.is_regular_file())
             continue;
-        if (entry.path().extension() != L".ini")
+        if (entry.path().extension() != L".profile")
             continue;
         names.push_back(wstring_to_string(entry.path().stem().wstring()));
     }
