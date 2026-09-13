@@ -423,7 +423,17 @@ class Keybind
         return "Unknown";
     }
 
-    void Render(CustomOptional<int>& configKey)
+    static std::string ShortcutLabel(int virtualKey, bool requireCtrl, bool requireAlt)
+    {
+        std::string label = KeyNameFromVirtualKeyCode(static_cast<USHORT>(virtualKey));
+        if (requireAlt)
+            label = "Alt+" + label;
+        if (requireCtrl)
+            label = "Ctrl+" + label;
+        return label;
+    }
+
+    void Render(CustomOptional<int>& configKey, bool requireCtrl = false, bool requireAlt = false)
     {
         ImGui::PushID(id);
         if (ImGui::Button(name.c_str()))
@@ -459,7 +469,7 @@ class Keybind
         }
 
         ImGui::SameLine();
-        ImGui::Text(KeyNameFromVirtualKeyCode(configKey.value_or_default()).c_str());
+        ImGui::Text(ShortcutLabel(configKey.value_or_default(), requireCtrl, requireAlt).c_str());
 
         ImGui::SameLine();
         ImGui::PushID(id);
@@ -1593,7 +1603,10 @@ void MenuCommon::UpdateVersionAndStartupNotifications(RenderMenuContext& ctx)
                 updateNotification.setTitle("OptiScaler Update available");
                 updateNotification.setContent(
                     "Press %s for more info",
-                    Keybind::KeyNameFromVirtualKeyCode(config->ShortcutKey.value_or_default()).c_str());
+                    Keybind::ShortcutLabel(config->ShortcutKey.value_or_default(),
+                                           config->ShortcutKeyRequireCtrl.value_or_default(),
+                                           config->ShortcutKeyRequireAlt.value_or_default())
+                        .c_str());
                 ImGui::InsertNotification(updateNotification);
                 return true;
             };
@@ -1729,7 +1742,10 @@ void MenuCommon::RenderSplashWindow(RenderMenuContext& ctx)
                     ImGui::SetWindowFontScale(splashScale);
 
                 ImGui::Text("OptiScaler - %s for menu",
-                            Keybind::KeyNameFromVirtualKeyCode(config->ShortcutKey.value_or_default()).c_str());
+                            Keybind::ShortcutLabel(config->ShortcutKey.value_or_default(),
+                                                   config->ShortcutKeyRequireCtrl.value_or_default(),
+                                                   config->ShortcutKeyRequireAlt.value_or_default())
+                                .c_str());
                 ImGui::TextColored(toneMapColor(ImVec4(1.0f, 1.0f, 1.0f, 0.7f)), splashMessage.c_str());
 
                 splashSize = ImGui::GetWindowSize();
@@ -7141,7 +7157,8 @@ void MenuCommon::RenderKeybindSettings(RenderMenuContext& ctx)
         static auto fgEnable = Keybind("Frame Generation", 13);
         static auto dlssNrToggle = Keybind("Neural Rendering", 14);
 
-        menu.Render(config->ShortcutKey);
+        menu.Render(config->ShortcutKey, config->ShortcutKeyRequireCtrl.value_or_default(),
+                    config->ShortcutKeyRequireAlt.value_or_default());
         fpsOverlay.Render(config->FpsShortcutKey);
         fpsOverlayCycle.Render(config->FpsCycleShortcutKey);
         fgEnable.Render(config->FGShortcutKey);
