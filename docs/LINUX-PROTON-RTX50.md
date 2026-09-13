@@ -79,6 +79,22 @@ also doesn't depend on Reflex-Sync. Given FSR-FG's failure was an overlay/swapch
 rather than anything FSR-specific, XeFG may hit the same conflict, or may not - worth testing
 before concluding no FG technology works here.
 
+**Update: official Streamline docs confirm the requirement, not just the symptom.** Now that
+`research/nvidia/streamline` (v2.14.1, `tools/research/fetch_sources.py`) is available locally,
+its `docs/ProgrammingGuideDLSS_G.md` section 8.0 states plainly: "**It is required** for sl.reflex
+to be integrated in the host application. **Any existing Reflex SDK integration that does not use
+Streamline cannot be used with DLSS-G.**" This is not an implementation detail DXVK-NVAPI happens
+to be missing - Streamline's own documentation makes full Reflex integration a hard prerequisite
+for DLSS-G, with no documented fallback. The same section's troubleshooting note - "If you see a
+warning... `common constants cannot be found for frame N`... the sl.reflex markers
+`eReflexMarkerPresentStart`/`eReflexMarkerPresentEnd` are out of sync with the frame being
+presented" - names exactly the frame-index-desync failure class this investigation observed
+(`RSYNC: setDynamicMFGParams failed`/`setReflexTiming failed`). Strengthens, rather than changes,
+the conclusion already filed as
+[vkd3d-proton#3292](https://github.com/HansKristian-Work/vkd3d-proton/issues/3292): this is a
+genuine gap in what a Vulkan/DXVK-NVAPI Reflex shim can implement without NVIDIA's undocumented
+driver-internal Dynamic-MFG negotiation surface, not a workaround-able configuration issue.
+
 ## Forcing DLSS-RR on a game with no in-menu RR option: fails safely, not a usable path
 
 This game's engine never calls `NVSDK_NGX_D3D12_CreateFeature` with
@@ -107,6 +123,17 @@ uses the auto-detected backend instead. Built and live-tested against this exact
 shows a clear refusal followed by a successful plain-DLSS creation, with no `BAD00005` and no
 FSR 2.1.2 fallback. DX12 only for now - the Vulkan backend-selection path is structurally
 different and untouched.
+
+**Known conservatism, from the official RR programming guide**: Streamline's own DLSS-RR guide
+(`research/nvidia/streamline/docs/ProgrammingGuideDLSS_RR.md`, section 4.1) documents that a real
+integration may pack roughness into the normals texture's alpha channel
+(`kBufferTypeNormalRoughness` with `normalRoughnessMode=ePacked`) instead of tagging a separate
+roughness buffer - at the NGX layer this could plausibly mean `GBuffer.Roughness` is legitimately
+never set even by a genuinely RR-capable renderer. `GameSuppliesRRInputs()` would then refuse a
+substitution that might have actually worked. Left as-is deliberately: the substitution this gate
+guards is already speculative (ini-forced against a feature the game never requested), so a false
+negative here just means "does not force RR" - the same safe outcome as before this gate existed -
+never a false positive that would risk the `BAD00005`/FSR21 regression this was built to prevent.
 
 ## Multipass (`Passes=2`) reintroduces grain and costs ~30% FPS at default tuning
 
