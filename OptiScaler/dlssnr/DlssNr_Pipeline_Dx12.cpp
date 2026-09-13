@@ -155,6 +155,18 @@ ShaderPass_Dx12 MakeDlssNrPass(DlssNr_Dx12& shader, ID3D12Device* device, ID3D12
     parameters->Get(NVSDK_NGX_Parameter_FrameTimeDeltaInMsec, &frame.FrameTimeMs);
     parameters->Get(NVSDK_NGX_Parameter_MV_Scale_X, &frame.MvScaleX);
     parameters->Get(NVSDK_NGX_Parameter_MV_Scale_Y, &frame.MvScaleY);
+    // NVIDIA's own reference helper treats an explicit 0.0f the same as "not set" here
+    // (nvsdk_ngx_helpers_d3d.h: "InMVScaleX == 0.0f ? 1.0f : InMVScaleX") - a game that reports a
+    // real 0.0 scale (a transient not-yet-computed value, an init-order race) would otherwise make
+    // every motion vector this pass reads collapse to zero, breaking MV-based reprojection (the
+    // RR residual accumulator, ADR-011/012, and the evaluation-cadence carry-forward, ADR-014)
+    // exactly the way it's designed to prevent. frame.MvScaleX/Y already default to 1.0f
+    // (DlssNr_Common.h) when the game never sets these keys at all; this closes the other case,
+    // an explicit zero.
+    if (frame.MvScaleX == 0.0f)
+        frame.MvScaleX = 1.0f;
+    if (frame.MvScaleY == 0.0f)
+        frame.MvScaleY = 1.0f;
     parameters->Get(NVSDK_NGX_Parameter_DLSS_Pre_Exposure, &frame.PreExposure);
     if (frame.PreExposure <= 1e-6f)
         frame.PreExposure = 1.0f;
