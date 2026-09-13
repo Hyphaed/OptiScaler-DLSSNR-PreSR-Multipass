@@ -104,6 +104,38 @@ before substituting DLSSD, whether the game's NGX parameter set actually contain
 inputs RR requires, and refuse the substitution (or synthesize safe defaults) when it doesn't.
 Flagging as a real gap rather than shipping a change against it.
 
+## Multipass (`Passes=2`) reintroduces grain and costs ~30% FPS at default tuning
+
+Upstream PR #43 (interpass raw-output clamp fix) was believed to be the blocker for testing
+`Passes>1` safely. It is not: this fork's current tree already implements the equivalent fix
+independently, for both DX12 and Vulkan (`DlssNr_Dx12_Run.cpp`'s `passClamp`/
+`DlssNrMode_ClampProxy`, `DlssNrFeature_Vk.cpp`'s `state.passClamp`), landed as part of the
+refactor that split the old monolithic `DlssNr_Dx12.cpp` into the current per-concern files. PR
+#43's diff no longer applies (its base predates that split by ~18k lines in this directory alone)
+and is not worth porting - the fix it proposes is already present under a different, more complete
+implementation.
+
+Tested `Passes=2` anyway, since the presumed blocker was gone. Measured via MangoHud, not felt:
+median FPS dropped from 88-89 (`Passes=1`) to 61.8 (p1_low 49.9) - about -30%, matching this
+project's own ini documentation ("2 and 3... cost almost exactly 2x and 3x the model time").
+Grain also visibly returned to the image.
+
+Root cause: `OptiScaler/dlssnr/PassProfiles.h` defaults pass 2 and pass 3 to
+`intensity=1.0`/`structure=1.0`, inherited from pass 1's own config, unless a per-pass override
+(`DlssNrPass2Intensity`, etc.) is set. The same full-strength detail-injection operator that
+already ran once therefore reapplies at full gain to its own already-processed output - not new
+information, the same operator twice. This matches the general finding in iterative
+super-resolution/refinement work (e.g. SR3, "Image Super-Resolution via Iterative Refinement",
+arXiv:2104.07636): iteration count and per-iteration strength need to be balanced against noise
+amplification, or repeated refinement compounds high-frequency artifacts instead of improving the
+image. This project's own ini already calls multipass "deliberately over-processed" - the grain is
+that tradeoff surfacing, not a new bug.
+
+Not fully closed: damping pass 2 via `DlssNrPass2Intensity`/`DlssNrPass2LocalStructure` below 1.0
+(a light reinforcement rather than a full reapplication) is a plausible follow-up this fork
+already exposes and this session did not test. `Passes=1` is the deployed config until that's
+tried.
+
 ## ReversibleMode was undiscoverable
 
 `DlssNrReversibleMode` has existed in `Config.h` since the hybrid-proxy commits (7ffcf8ee,
