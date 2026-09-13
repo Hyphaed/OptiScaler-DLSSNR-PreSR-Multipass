@@ -216,14 +216,16 @@ global blend rate is a compromise between stable pixels (want slow blend) and ju
 fast-changing pixels (want fast blend) - tuning the single constant only moves where that
 compromise sits, it can't remove it.
 
-**Proposed, not implemented** (full write-up: `workflow/decisions/ADR-011` in the
-`optiscaler-deploy`/workflow tree): replace the single `gResidualBlend` scalar with a per-pixel
-value derived from local disagreement between the reprojected history and the freshly-computed
-model edit, since DLSS-NR has no raw radiance samples to compute NRD's literal gradient from.
-`gResidualHistoryValid`'s existing binary invalidation stays as a hard floor underneath it.
-Classified **adaptable**: production-proven mechanism, cost-bounded, but needs real design work
-(what "disagreement" means without ground-truth radiance) before it is a patch rather than a
-citation - not attempted this session.
+**Update: implemented and built.** `gResidualBlend` is now the stable floor of a per-pixel gate:
+`disagreement = saturate(length(delta - history) / gResidualConfidenceSensitivity)`, blend rate
+`a = lerp(gResidualBlend, 1.0, disagreement)`. New `[DlssNr] ResidualConfidenceSensitivity` ini key
+(default `0.25`). Built clean on the guest VM (both DX12 `.cso` and Vulkan `.spv` blobs
+recompiled), deployed, and smoke-tested live: zero Xid, all baseline signals normal. **What this
+confirms and what it doesn't**: the whole code path is gated on Ray Reconstruction being active
+(`g.rayReconstruction`), which this game doesn't support (ADR-008) - so this run only confirms the
+change is a correct no-op with RR off, not that the gate improves anything. Real validation needs
+a genuinely RR-capable game. Full rationale: `workflow/decisions/ADR-011` (proposal) and
+`ADR-012` (implementation).
 
 **Bonus finding, same source**: NRD's "Interaction with Frame Generation" section states that FG's
 boosted display rate does *not* speed up the underlying denoising pass rate, so
