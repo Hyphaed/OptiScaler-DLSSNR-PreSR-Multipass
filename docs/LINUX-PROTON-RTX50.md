@@ -192,6 +192,47 @@ what `PassProfiles.h`'s multipass tuning lacks today (ADR-009) - a per-pass sens
 new information is actually left to extract, rather than a fixed `intensity=1.0` inherited
 unconditionally from pass 1.
 
+## DLSS-NR's fixed-blend history has no confidence signal (NRD comparison)
+
+Compared this fork's own temporal accumulation against NVIDIA's real-time denoisers (NRD v4.18.0,
+`research/nvidia/nrd`) - the closest official analogue to what the DLSS-NR pass does, since both
+accumulate a per-pixel signal across frames using reprojection.
+
+`dlssnr_residual.hlsl`'s accumulate mode is `history_t = lerp(reproject(history_{t-1}), edited -
+original, gResidualBlend)`, where `gResidualBlend` is one scalar for the whole frame
+(`DlssNrResidualAcrossRrBlend`, default 0.08). Reprojection validity is binary: invalid (off-screen
+/ bad motion vector) zeroes history at that pixel, valid gets the same fixed blend rate regardless
+of how much actually changed there. `DlssNr_Dx12_Run.cpp`'s only other reset path is a full,
+whole-frame reset on the game's own signal - also binary.
+
+NRD's own README states this directly: "An application should not rely solely on the anti-lag
+provided by REBLUR/RELAX" - a fixed/binary scheme is documented by NVIDIA as an insufficient
+baseline, not a legitimate design choice to converge on. Their fix is a continuous `[0,1]`
+per-pixel confidence signal (`IN_DIFF_CONFIDENCE`/`IN_SPEC_CONFIDENCE`), computed from a gradient
+between stored and re-evaluated radiance, that scales the effective accumulated history length
+every frame - at NRD's own stated cost of under 5% of frame time. This retroactively explains why
+`ReversibleMode`/`TransferStrength` tuning (this doc, above) was needed to fight ghosting: one
+global blend rate is a compromise between stable pixels (want slow blend) and just-disoccluded/
+fast-changing pixels (want fast blend) - tuning the single constant only moves where that
+compromise sits, it can't remove it.
+
+**Proposed, not implemented** (full write-up: `workflow/decisions/ADR-011` in the
+`optiscaler-deploy`/workflow tree): replace the single `gResidualBlend` scalar with a per-pixel
+value derived from local disagreement between the reprojected history and the freshly-computed
+model edit, since DLSS-NR has no raw radiance samples to compute NRD's literal gradient from.
+`gResidualHistoryValid`'s existing binary invalidation stays as a hard floor underneath it.
+Classified **adaptable**: production-proven mechanism, cost-bounded, but needs real design work
+(what "disagreement" means without ground-truth radiance) before it is a patch rather than a
+citation - not attempted this session.
+
+**Bonus finding, same source**: NRD's "Interaction with Frame Generation" section states that FG's
+boosted display rate does *not* speed up the underlying denoising pass rate, so
+`GetMaxAccumulatedFrameNum`-equivalent history-length math must be driven by the *real* render FPS,
+not the generated one, or temporal lag increases by the FG multiplier. Not currently relevant here
+(FG is confirmed non-viable, ADR-003) but worth checking first if that ever changes upstream -
+DLSS-NR's own history-length/accumulation logic would need the same real-vs-generated FPS
+distinction NRD documents.
+
 ## ReversibleMode was undiscoverable
 
 `DlssNrReversibleMode` has existed in `Config.h` since the hybrid-proxy commits (7ffcf8ee,
