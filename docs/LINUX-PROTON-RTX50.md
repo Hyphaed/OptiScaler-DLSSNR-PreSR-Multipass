@@ -79,6 +79,31 @@ also doesn't depend on Reflex-Sync. Given FSR-FG's failure was an overlay/swapch
 rather than anything FSR-specific, XeFG may hit the same conflict, or may not - worth testing
 before concluding no FG technology works here.
 
+## Forcing DLSS-RR on a game with no in-menu RR option: fails safely, not a usable path
+
+This game's engine never calls `NVSDK_NGX_D3D12_CreateFeature` with
+`NVSDK_NGX_Feature_RayReconstruction` - only `SuperSampling` - so its graphics menu has no Ray
+Reconstruction toggle. `TryCreateOptiFeature` (`inputs/NVNGX_DLSS_Dx12.cpp`) picks the upscaler
+backend for a `SuperSampling` call from `[Upscalers] Dx12Upscaler` regardless of which NGX feature
+the game actually requested, so setting `Dx12Upscaler=dlssd` does substitute a real DLSSD (RR)
+feature for the game's SR request, bypassing the missing menu option.
+
+Tested it. `DLSSD::Init` fails immediately and OptiScaler falls back to FSR 2.1.2 as the base
+upscaler (`Feature 'DLSSD' initialization failed falling back to FSR 2.1.2`) - no crash, no Xid,
+the fallback path itself works correctly. Root cause: DLSS-RR's NGX contract needs G-buffer
+signals SR does not (`DLSS.Input.DiffuseAlbedo`, `SpecularAlbedo`, `GBuffer.Normals`,
+`GBuffer.Roughness`, `MotionVectorsReflection`, plus specular/diffuse hit-distance buffers) - a
+game whose engine never intends to call the RR feature has no reason to ever populate those NGX
+parameters, so `DLSSD::Init` fails against its own contract. The resulting FSR 2.1.2 + NR
+combination is a quality *downgrade* from DLSS + NR, not an upgrade - any FPS or stability
+improvement observed here is explained entirely by FSR 2.1.2 being cheaper than DLSS, not by
+Ray Reconstruction doing anything.
+
+Not something OptiScaler can safely paper over with a config default: it would need to detect,
+before substituting DLSSD, whether the game's NGX parameter set actually contains the G-buffer
+inputs RR requires, and refuse the substitution (or synthesize safe defaults) when it doesn't.
+Flagging as a real gap rather than shipping a change against it.
+
 ## ReversibleMode was undiscoverable
 
 `DlssNrReversibleMode` has existed in `Config.h` since the hybrid-proxy commits (7ffcf8ee,
