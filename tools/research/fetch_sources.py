@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Reproducible fetcher for the external research corpus this project's architecture work draws on.
 
-Scope note (deliberate): this covers the P0 sources only - DLSS, Streamline, NRD, upstream
-OptiScaler, and RTX-Kit (fetched for its .gitmodules map, not exhaustively expanded). P1-P3
-(RTXNS/RTXPT/RTXDI/RTXGI/RTXCR/RTXMU/RTXTS/RTXTF/RTXMG/OMM/STBN/NIS, papers, issue mining) are not
-fetched by this script. Extend SOURCES below when a specific investigation needs one of them -
-cloning all of them unconditionally costs real disk/bandwidth for repos this project may never
-open.
+Covers P0-P3: DLSS, Streamline, NRD, upstream OptiScaler, RTX-Kit (P0); RTXNS/RTXPT/RTXDI/RTXGI
+(P1); RTXCR/RTXMU/RTXTS/RTXTF/RTXMG/OMM/STBN (P2); NVIDIAImageScaling (P3, provenance only - a
+copy already lives at ~/Dev/github_gaming/NVIDIAImageScaling). Started scoped to P0 only; expanded
+to the full list once the user's own mission briefs named the same 15+ repos twice, which reads as
+confirmed intent rather than a one-off ask. Papers and issue-mining are still NOT fetched here -
+that is a different, per-question research activity, not a corpus to clone in bulk.
 
 Never touches this repository's own working tree. Everything lands under research/, one directory
 per source, and research/ is listed in .gitignore (large binary clones do not belong in this
@@ -62,22 +62,36 @@ SOURCES: list[Source] = [
            "not expanded into its submodules by this script."),
     Source("OptiScaler-upstream", "https://github.com/optiscaler/OptiScaler", "optiscaler/upstream", "P0",
            "Upstream OptiScaler, to distinguish upstream behavior from this fork's modifications."),
-    # P1 (not fetched - add here and re-run when a specific investigation needs one):
-    #   RTXNS  https://github.com/NVIDIA-RTX/RTXNS
-    #   RTXPT  https://github.com/NVIDIA-RTX/RTXPT
-    #   RTXDI  https://github.com/NVIDIA-RTX/RTXDI
-    #   RTXGI  https://github.com/NVIDIA-RTX/RTXGI
-    # P2 (not fetched):
-    #   RTXCR  https://github.com/NVIDIA-RTX/RTXCR
-    #   RTXMU  https://github.com/NVIDIA-RTX/RTXMU
-    #   RTXTS  https://github.com/NVIDIA-RTX/RTXTS
-    #   RTXTF  https://github.com/NVIDIA-RTX/RTXTF
-    #   RTXMG  https://github.com/NVIDIA-RTX/RTXMG
-    #   OMM    https://github.com/NVIDIA-RTX/OMM
-    #   STBN   https://github.com/NVIDIA-RTX/STBN
-    # P3 (not fetched):
-    #   NVIDIAImageScaling  https://github.com/NVIDIAGameWorks/NVIDIAImageScaling
-    #   (already present locally at ~/Dev/github_gaming/NVIDIAImageScaling - see docs/LINUX-PROTON-RTX50.md)
+    # P1 - RT/PT/GI signal sources; relevant to "what information could NR consume beyond color".
+    Source("RTXNS", "https://github.com/NVIDIA-RTX/RTXNS", "nvidia/rtxns", "P1",
+           "Neural shading - Tensor Core execution, cooperative vectors, inference scheduling."),
+    Source("RTXPT", "https://github.com/NVIDIA-RTX/RTXPT", "nvidia/rtxpt", "P1",
+           "Path tracing signals: ray data, material info, what a neural pass could consume pre-denoise."),
+    Source("RTXDI", "https://github.com/NVIDIA-RTX/RTXDI", "nvidia/rtxdi", "P1",
+           "ReSTIR direct lighting - temporal/spatial reservoir reuse, a precedent for confidence/reuse."),
+    Source("RTXGI", "https://github.com/NVIDIA-RTX/RTXGI", "nvidia/rtxgi", "P1",
+           "Probe-based GI - indirect lighting temporal reconstruction."),
+    # P2 - character/material/geometry/memory specialization.
+    Source("RTXCR", "https://github.com/NVIDIA-RTX/RTXCR", "nvidia/rtxcr", "P2",
+           "Character rendering (skin/hair/eyes) - relevant to cinematic, character-heavy content."),
+    Source("RTXMU", "https://github.com/NVIDIA-RTX/RTXMU", "nvidia/rtxmu", "P2",
+           "Acceleration-structure memory management - how much temporal/neural state a 12GB card can retain."),
+    Source("RTXTS", "https://github.com/NVIDIA-RTX/RTXTS", "nvidia/rtxts", "P2",
+           "Texture streaming/residency - whether texture residency affects NR's useful input."),
+    Source("RTXTF", "https://github.com/NVIDIA-RTX/RTXTF", "nvidia/rtxtf", "P2",
+           "Texture filtering - neural/advanced filtering concepts."),
+    Source("RTXMG", "https://github.com/NVIDIA-RTX/RTXMG", "nvidia/rtxmg", "P2",
+           "Mega geometry - fine/thin geometry (foliage, hair) failure cases for reconstruction."),
+    Source("OMM", "https://github.com/NVIDIA-RTX/OMM", "nvidia/omm", "P2",
+           "Opacity micro-maps - alpha-tested/thin geometry, a documented NR failure case."),
+    Source("STBN", "https://github.com/NVIDIA-RTX/STBN", "nvidia/stbn", "P2",
+           "Spatiotemporal blue noise - stochastic sampling stability."),
+    # P3 - lower priority; NIS is already present locally (see docs/LINUX-PROTON-RTX50.md), so this
+    # only records provenance rather than re-cloning a duplicate.
+    Source("NVIDIAImageScaling", "https://github.com/NVIDIAGameWorks/NVIDIAImageScaling",
+           "nvidia/nvidia-image-scaling", "P3",
+           "Already used locally from ~/Dev/github_gaming/NVIDIAImageScaling - cloned here too "
+           "only so research/ is a complete, self-contained corpus per source."),
 ]
 
 
@@ -206,6 +220,75 @@ def write_manifest() -> None:
     (RESEARCH_DIR / "sources.json").write_text(json.dumps(data, indent=2) + "\n")
 
 
+HIGH_VALUE_TERMS = [
+    "dlss_nr", "neural rendering", "3D-Guided", "DLSSG", "DLSSD", "Frame Generation",
+    "Ray Reconstruction", "motion vector", "disocclusion", "frame index", "resource tag",
+    "EvaluateFeature", "CreateFeature", "history confidence", "GetMaxAccumulatedFrameNum",
+]
+SCAN_EXTENSIONS = {".h", ".hpp", ".c", ".cpp", ".cs", ".hlsl", ".md", ".txt"}
+MAX_SCAN_BYTES = 2_000_000  # skip anything larger - not a source file we'd read anyway
+
+
+def scan_high_value_files() -> dict[str, list[str]]:
+    """Grep-equivalent in pure Python (no external rg dependency) over text-like files only."""
+    hits: dict[str, list[str]] = {}
+    for path in RESEARCH_DIR.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in SCAN_EXTENSIONS:
+            continue
+        if ".git" in path.parts:
+            continue
+        try:
+            if path.stat().st_size > MAX_SCAN_BYTES:
+                continue
+            text = path.read_text(errors="ignore")
+        except OSError:
+            continue
+        matched = sorted({term for term in HIGH_VALUE_TERMS if term.lower() in text.lower()})
+        if matched:
+            hits[str(path.relative_to(REPO_ROOT))] = matched
+    return hits
+
+
+def write_high_value_files() -> None:
+    hits = scan_high_value_files()
+    lines = ["# High-value files", "",
+             "Files under research/ matching neural-rendering-relevant terms. Generated by",
+             "scanning file content, not filenames - see fetch_sources.py's HIGH_VALUE_TERMS list.",
+             "Read the actual source before citing any of these as evidence.", ""]
+    # Most relevant (most matched terms) first.
+    for path, terms in sorted(hits.items(), key=lambda kv: -len(kv[1])):
+        lines.append(f"- `{path}` - {', '.join(terms)}")
+    lines.append("")
+    lines.append(f"{len(hits)} files matched, out of the corpus scanned.")
+    (RESEARCH_DIR / "HIGH_VALUE_FILES.md").write_text("\n".join(lines))
+    log(f"HIGH_VALUE_FILES.md: {len(hits)} matching files")
+
+
+def write_source_index() -> None:
+    lines = ["# Source index", "",
+             "Navigation aid over the fetched corpus - what's here and where to start reading.",
+             "See MANIFEST.md for exact commits/tags; HIGH_VALUE_FILES.md for term-matched files.",
+             ""]
+    for src in SOURCES:
+        path = RESEARCH_DIR / src.subdir
+        lines.append(f"## {src.name} ({src.priority}) - `research/{src.subdir}`")
+        lines.append("")
+        lines.append(f"{src.notes}")
+        if path.is_dir():
+            readme = next((p for p in [path / "README.md", path / "Readme.md", path / "readme.md"]
+                          if p.exists()), None)
+            docs_dir = path / "docs"
+            lines.append(f"- Top-level README: {'present' if readme else 'none found'}")
+            if docs_dir.is_dir():
+                doc_files = sorted(p.name for p in docs_dir.glob("*.md"))[:15]
+                if doc_files:
+                    lines.append(f"- docs/: {', '.join(doc_files)}")
+        else:
+            lines.append("- Not fetched (not cloned, or fetch failed - see VALIDATION.md).")
+        lines.append("")
+    (RESEARCH_DIR / "SOURCE_INDEX.md").write_text("\n".join(lines))
+
+
 def write_validation() -> None:
     lines = ["# Corpus validation", "", f"Run: {datetime.now(timezone.utc).isoformat()}", ""]
     any_fail = False
@@ -256,6 +339,8 @@ def main() -> int:
 
     write_manifest()
     write_validation()
+    write_source_index()
+    write_high_value_files()
     log("Done.")
     return 0
 
